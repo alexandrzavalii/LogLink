@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Place searches</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+
+
+       /* yyyyMMddhhmmss
+http://web.archive.org/cdx/search/cdx?url=dundrum.ie&fl=timestamp&fastLatest=true&output=json&limit=-2
+["2016/11/21 07:29:30"]]
+
+    */
+
+    .posible_types{
+      position: absolute;
+      top: 0;
+      width: 20%;
+    }
+    .content{
+      margin: 0px auto;
+      width: 50%;
+    }
+      #map {
+        width: 100%;
+        height: 400px;
+      }
+      .no_website_tag{
+        padding-left: 10px;
+        color: red;
+      }
+      #results{
+        display: inline-block;
+      }
+      #checked{
+        display: inline-block;
+      }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <script>
+    // This example requires the Places library. Include the libraries=places
+    // parameter when you first load the API. For example:
+    // <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places">
+
+    var map;
+    var infoWindow;
+    var service;
+    var totalFound;
+    var checked = 0;
+    var marker;
+    var type_property = "restaurant";
+
+    var webArchivUrl = 'http://web.archive.org/cdx/search/cdx?fl=timestamp&fastLatest=true&output=json&limit=-1&url=';
+    function initMap() {
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: {lat: 55.6858799, lng: 37.7398243},
+        zoom: 10,
+        styles: [{
+          stylers: [{ visibility: 'simplified' }]
+        }, {
+          elementType: 'labels',
+          stylers: [{ visibility: 'off' }]
+        }]
+      });
+
+      infoWindow = new google.maps.InfoWindow();
+      service = new google.maps.places.PlacesService(map);
+
+      // The idle event is a debounced event, so we can query & listen without
+      // throwing too many requests at the server.
+      map.addListener('click', function(event){
+        placeMarker(event.latLng);
+      });
+    }
+
+    function performSearch() {
+      var request = {
+        bounds: map.getBounds(),
+        keyword: type_property
+      };
+      service.radarSearch(request, callback);
+    }
+
+    function callback(results, status) {
+      if (status !== google.maps.places.PlacesServiceStatus.OK) {
+        console.error(status);
+        return;
+      }
+      for (var i = 0, result; result = results[i]; i++) {
+        totalFound = results.length;
+        document.getElementById("results").innerHTML = totalFound;
+        getDetail(result);
+      }
+    }
+    function getDetail(place) {
+
+      service.getDetails({placeId: place.place_id}, function(details, status) {
+          if (status === google.maps.places.PlacesServiceStatus.OK) {
+              checked++;
+              document.getElementById("checked").innerHTML = checked;
+            if(details && !details.website) {
+                addMarker(place);
+                var z = document.createElement('p');
+                z.innerHTML = '<b> Name of the place: </b>'+ details.name +''+  '<span class="no_website_tag">NO WEBSITE</span>';
+                document.getElementById("placeData").appendChild(z);
+          } else if(details) {
+            httpGetAsync(details.website, function(res){
+              let formatResponse = JSON.parse(res);
+              if (formatResponse.length > 0) {
+              let date = formatResponse[1][0];
+              let year = date.slice(0,4);
+              let month = date.slice(4,6);
+              let day = date.slice(6,8);
+              console.log('this is callback for website: '+ details.website + ' : '+ year+'/'+month+ '/' + day)
+            }
+            })
+          }
+
+          } else if (status === google.maps.GeocoderStatus.OVER_QUERY_LIMIT) {
+              setTimeout(function() {
+                  getDetail(place);
+              }, 200);
+          }
+      });
+    }
+    function addMarker(place) {
+      var marker = new google.maps.Marker({
+        map: map,
+        position: place.geometry.location,
+        icon: {
+          url: 'https://developers.google.com/maps/documentation/javascript/images/circle.png',
+          anchor: new google.maps.Point(10, 10),
+          scaledSize: new google.maps.Size(10, 17)
+        }
+      });
+
+      google.maps.event.addListener(marker, 'click', function() {
+        service.getDetails(place, function(result, status) {
+          if (status !== google.maps.places.PlacesServiceStatus.OK) {
+            console.error(status);
+            return;
+          }
+          infoWindow.setContent(result.name);
+          infoWindow.open(map, marker);
+        });
+      });
+
+    }
+
+    function httpGetAsync(website, callback)
+{
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.onreadystatechange = function() {
+        if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
+            callback(xmlHttp.responseText);
+    }
+    xmlHttp.open("GET", webArchivUrl+ website, true); // true for asynchronous
+    xmlHttp.send(null);
+}
+
+function search(){
+  type_property = document.getElementById("type_place").value;
+  performSearch();
+}
+function placeMarker(location) {
+  if(marker){
+      marker.setMap(null);
+    }
+    marker = new google.maps.Marker({
+        position: location,
+        map: map
+    });
+}
+
+    </script>
+  </head>
+  <body>
+      <div class="content">
+      <div id="map"></div>
+      <div>
+        <span> Status: </span> <span id="results"></span> <b>/</b><span id="checked"></span>
+      </div>
+      Search for places('restaurant', 'haircut'): <input type="text" id="type_place" name="fname"><br>
+      <button onclick="search()"> Search </button>
+      <div id="placeData"></div>
+    </div>
+    <div class="posible_types">
+      <ul>
+	<li>accounting</li>
+	<li>airport</li>
+	<li>amusement_park</li>
+	<li>aquarium</li>
+	<li>art_gallery</li>
+	<li>atm</li>
+	<li>bakery</li>
+	<li>bank</li>
+	<li>bar</li>
+	<li>beauty_salon</li>
+	<li>bicycle_store</li>
+	<li>book_store</li>
+	<li>bowling_alley</li>
+	<li>bus_station</li>
+	<li>cafe</li>
+	<li>campground</li>
+	<li>car_dealer</li>
+	<li>car_rental</li>
+	<li>car_repair</li>
+	<li>car_wash</li>
+	<li>casino</li>
+	<li>cemetery</li>
+	<li>church</li>
+	<li>city_hall</li>
+	<li>clothing_store</li>
+	<li>convenience_store</li>
+	<li>courthouse</li>
+	<li>dentist</li>
+	<li>department_store</li>
+	<li>doctor</li>
+	<li>electrician</li>
+	<li>electronics_store</li>
+	<li>embassy</li>
+	<li>establishment (deprecated)</li>
+	<li>finance (deprecated)</li>
+	<li>fire_station</li>
+	<li>florist</li>
+	<li>food (deprecated)</li>
+	<li>funeral_home</li>
+	<li>furniture_store</li>
+	<li>gas_station</li>
+	<li>general_contractor (deprecated)</li>
+	<li>grocery_or_supermarket (deprecated)</li>
+	<li>gym</li>
+	<li>hair_care</li>
+	<li>hardware_store</li>
+	<li>health (deprecated)</li>
+	<li>hindu_temple</li>
+	<li>home_goods_store</li>
+	<li>hospital</li>
+	<li>insurance_agency</li>
+	<li>jewelry_store</li>
+	<li>laundry</li>
+	<li>lawyer</li>
+	<li>library</li>
+	<li>liquor_store</li>
+	<li>local_government_office</li>
+	<li>locksmith</li>
+	<li>lodging</li>
+	<li>meal_delivery</li>
+	<li>meal_takeaway</li>
+	<li>mosque</li>
+	<li>movie_rental</li>
+	<li>movie_theater</li>
+	<li>moving_company</li>
+	<li>museum</li>
+	<li>night_club</li>
+	<li>painter</li>
+	<li>park</li>
+	<li>parking</li>
+	<li>pet_store</li>
+	<li>pharmacy</li>
+	<li>physiotherapist</li>
+	<li>place_of_worship (deprecated)</li>
+	<li>plumber</li>
+	<li>police</li>
+	<li>post_office</li>
+	<li>real_estate_agency</li>
+	<li>restaurant</li>
+	<li>roofing_contractor</li>
+	<li>rv_park</li>
+	<li>school</li>
+	<li>shoe_store</li>
+	<li>shopping_mall</li>
+	<li>spa</li>
+	<li>stadium</li>
+	<li>storage</li>
+	<li>store</li>
+	<li>subway_station</li>
+	<li>synagogue</li>
+	<li>taxi_stand</li>
+	<li>train_station</li>
+	<li>transit_station</li>
+	<li>travel_agency</li>
+	<li>university</li>
+	<li>veterinary_care</li>
+	<li>zoo</li>
+</ul>
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCabHfPaHn4IUyHjJw5O80gaRMDFGtlAWU&libraries=places&callback=initMap" async defer></script>
+
+  </body>
+</html>
